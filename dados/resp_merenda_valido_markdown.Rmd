@@ -1,0 +1,241 @@
+---
+title: "analise_respostas"
+author: "Manoel Galdino"
+date: "August 22, 2019"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Análise das resposas
+
+Nós tivemos 65 formulários, mas apenas 62 colocaram sim no termo de ciência da pesquisa. Portanto, analiso aqui apenas os 62 que aceitaram ter seus dados analisados. 
+
+```{r, warning=FALSE, message=FALSE, , echo=FALSE}
+library(tidyverse)
+setwd("C:/Users/mczfe/Transparencia Brasil/Projetos/Tinker/Github/tinker/dados")
+load(file="resp_merenda_valido.RData")
+resp_merenda_valido %>%
+  summarise(n())
+```
+
+Como enviamos dois tipos de questionários, eis os totais de respostas por questionário:
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+
+resp_merenda_valido %>%
+  group_by(tipo) %>%
+  summarise(respostas = n())
+```
+
+## Demográficos
+Vamos analisar os dados demográficos : UF e perfil do respondente
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+print("UF")
+resp_merenda_valido %>%
+  group_by(uf) %>%
+  summarise(total=n()) %>%
+  ungroup() %>%
+  mutate(perc = round(total/sum(total), 2))
+
+print("Perfil do respondente")
+
+resp_merenda_valido %>%
+  group_by(sobre) %>%
+  summarise(total=n()) %>%
+  ungroup() %>%
+  mutate(perc = round(total/sum(total), 2))
+```
+
+Como se vê, há uma grande concentração de respostas no estado de São Paulo (90% das respostas).
+
+## Hipóteses
+
+Vamos começar agora a responder as hipóteses que orientaram a pesquisa. Nossa primeira investigação era sobre como perguntar a frequência com que as pessoas comiam a merenda.
+Como tivemos apenas 9 respostas no tipo A, o teste não é muito conclusivo.
+
+De todo modo, o questionário A continha a seguinte pergunta:
+"Quantas Vezes Na Semana Você Costuma Comer As Refeições Oferecidas Pela Escola"
+
+Já o questionario B perguntava:
+"Você Comeu As Refeições Oferecidas Pela Escola Mais De Uma Vez Neste Ano"
+
+Eis as respostas para cada tipo de questionário
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+print("Questionário A")
+
+resp_merenda_valido %>%
+  filter(tipo == "A") %>%
+  group_by(freq_comeu_A) %>%
+  summarise(total=n()) %>%
+  ungroup() %>%
+  mutate(perc = round(total/sum(total), 2))
+
+print("Questionário B")
+resp_merenda_valido %>%
+  filter(tipo == "B") %>%
+  group_by(freq_comeu_B) %>%
+  summarise(total=n()) %>%
+  ungroup() %>%
+  mutate(perc = round(total/sum(total), 2))
+```
+
+Devido ao baixo número de respostas do formulário A, não é possível tirar mais conclusões.
+Podemos nos perguntar, porém, se há associação entre quem come a comida e o perfil do respondente (estudantes comeriam, pais não).
+Os dados, porém, mostram uma associação clara, porém menor do que eu esperava. No questionário B (onde temos mais respostas), estudantes são quase 3x mais prováveis de responderem positivamente à questão do que negativamente, e quase não há diferença na respostas de pais, e funcionários todos comem (mas o número de respostas desse perfil é baixo).
+
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+print("questionário B")
+resp_merenda_valido %>%
+  filter(tipo == "B") %>%
+  ggplot(aes(x=freq_comeu_B)) + geom_bar() +
+  facet_grid( ~ sobre)
+
+print("questionário A")
+resp_merenda_valido %>%
+  filter(tipo == "A") %>%
+  ggplot(aes(x=freq_comeu_A)) + geom_bar() + coord_flip() + 
+  facet_grid( ~ sobre)
+```
+
+
+A partir de agora, as perguntas do questionário B e A são iguais, de forma que não mais distinguiremos a análise por tipo de resposta - iremos juntar as respostas.
+
+## Qualidade da merenda
+
+Quando perguntados sobre a qualidade da merenda (se achavam satisfatória), 30% disseram que não e 50% achavam satisfatória. O restante não soube ou não respondeu. 
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+#print("questionário B")
+resp_merenda_valido %>%
+  group_by(qualidade_merenda) %>%
+  summarise(total=n()) %>%
+  ungroup() %>%
+  mutate(perc = round(total/sum(total), 2))
+
+resp_merenda_valido %>%
+  ggplot(aes(x=qualidade_merenda)) + geom_bar() + coord_flip() + 
+  facet_grid( ~ sobre)
+
+```
+
+## Cardápio
+
+Quando perguntados se o cardápio podia ser cosnultado, 44% disseram que não e 56% que sim. Cruzando por tipo de respondente, por UF (SP vs outros) e cidade, vemos que não há correlação entre a resposta e se é estudante, e alguma evidência de que pais e funcionários são mais propensos a achar que sim, o cardápio pode ser consultado.
+Quando olhamos para região, notamos que UF não é informativo, mas cidade é. No agregado não há diferença ser estudante e achar o cardápio, mas entre cidades isso muda. O que sugere que há variaçao de cidade na publicidade do cardápio (possivelmente entre escolas). Isso desaparece ao nível do estado, porque a variação é aleatório e uma coisa compensa a outra. Isso sugere que cidade (escolas?) é mais importante para explicar a variação nesse dado que o tipo de respondente.
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+#print("questionário B")
+resp_merenda_valido %>%
+  group_by(cardapio_transparente) %>%
+  summarise(total=n()) %>%
+  ungroup() %>%
+  mutate(perc = round(total/sum(total), 2))
+
+resp_merenda_valido %>%
+  ggplot(aes(x=cardapio_transparente)) + geom_bar() +
+  facet_grid( ~ sobre)
+
+resp_merenda_valido %>%
+  ggplot(aes(x=cardapio_transparente)) + geom_bar() +
+  facet_grid( ~ qualidade_merenda)
+
+resp_merenda_valido %>%
+  mutate(uf1 = ifelse(uf == "SP", uf, "outros")) %>%
+  ggplot(aes(x=cardapio_transparente)) + geom_bar() +
+  facet_grid(uf1 ~ sobre)
+
+resp_merenda_valido %>%
+  mutate(uf1 = ifelse(uf == "SP", uf, "outros")) %>%
+  ggplot(aes(x=cardapio_transparente)) + geom_bar() +
+  facet_grid(sobre ~ cidade)
+
+resp_merenda_valido %>%
+  mutate(uf1 = ifelse(uf == "SP", uf, "outros")) %>%
+  ggplot(aes(x=cardapio_transparente)) + geom_bar() +
+  facet_grid( ~ cidade)
+
+```
+
+Demais perguntas sobre cardápio eram: 1. como consulta o cardápio e 2. se a merenda corresponde ao cardápio. Quarenta porcento não responderam à primeira pergunta. Então procuramos investigar se havia associação entre perfil do respondente e ter respondido à pergunta ou cidade e ter respondido à pergunta. A hipótese é que uma associação clara daria luz sobre a utilidade desta pergunta para determinado público alvo ou para cidades/escolas. Há uma associação, mas bem mais fraca que a encontrada sobre ter o cardápio disponível ou não. Precisaria investigar mais (aka coletar mais dados).
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+#print("questionário B")
+# resp_merenda_valido %>%
+#   group_by(como_consulta_cardapio) %>%
+#   summarise(total=n()) %>%
+#   ungroup() %>%
+#   mutate(perc = round(total/sum(total), 2)) %>%
+#   arrange(desc(perc))
+
+resp_merenda_valido %>%
+  mutate(respondeu = ifelse(is.na(como_consulta_cardapio), "não", "sim")) %>%
+  ggplot(aes(x=respondeu)) + geom_bar() +
+  facet_grid( ~ sobre)
+
+resp_merenda_valido %>%
+  mutate(respondeu = ifelse(is.na(como_consulta_cardapio), "não", "sim")) %>%
+  ggplot(aes(x=respondeu)) + geom_bar() +
+  facet_grid( ~ cidade)
+
+
+
+```
+
+E abaixo temos as respostas de como eles acessam ao cardápio. Grosso modo, está disponível na parede.
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+
+resp_merenda_valido %>%
+  filter(!is.na(como_consulta_cardapio)) %>%
+  mutate(uf1 = ifelse(uf == "SP", uf, "outros")) %>%
+  ggplot(aes(x=como_consulta_cardapio)) + geom_bar() + coord_flip()
+  facet_grid( ~ cidade)
+```
+
+Com relação à correspondência entre cardápio e merenda, olhando apenas para aqueles que responderam a pergunta acima, encontramos que o cardápio, via de regra, corresponde à merenda sempre ou quase sempre. 
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+
+resp_merenda_valido %>%
+  filter(!is.na(como_consulta_cardapio)) %>%
+  mutate(uf1 = ifelse(uf == "SP", uf, "outros")) %>%
+  ggplot(aes(x=corresp_cardapio_merenda)) + geom_bar() + coord_flip()
+  
+
+resp_merenda_valido %>%
+  filter(!is.na(como_consulta_cardapio)) %>%
+  ggplot(aes(x=corresp_cardapio_merenda)) + geom_bar() + coord_flip() +
+  facet_wrap( ~ cidade)
+```
+
+# Preparo da Merenda
+A maior parte das respostas indicam que a merenda é preparada na escola e não há diferenças por cidade.
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+
+resp_merenda_valido %>%
+    mutate(fazer_refeicao1 = gsub("em parte preparadas na escola e em parte chegam prontas", "misto", fazer_refeicao)) %>%
+  mutate(uf1 = ifelse(uf == "SP", uf, "outros")) %>%
+  ggplot(aes(x=fazer_refeicao1)) + geom_bar() + coord_flip()
+  
+
+resp_merenda_valido %>%
+  mutate(fazer_refeicao1 = gsub("em parte preparadas na escola e em parte chegam prontas", "misto", fazer_refeicao)) %>%
+  ggplot(aes(x=fazer_refeicao1)) + geom_bar() + coord_flip() +
+  facet_wrap( ~ cidade)
+
+resp_merenda_valido %>%
+  mutate(fazer_refeicao1 = gsub("em parte preparadas na escola e em parte chegam prontas", "misto", fazer_refeicao)) %>%
+  ggplot(aes(x=fazer_refeicao1)) + geom_bar() + coord_flip() +
+  facet_wrap( ~ qualidade_merenda)
+
+resp_merenda_valido %>%
+  mutate(fazer_refeicao1 = gsub("em parte preparadas na escola e em parte chegam prontas", "misto", fazer_refeicao)) %>%
+  ggplot(aes(x=fazer_refeicao1)) + geom_bar() + coord_flip() +
+  facet_wrap( ~ cardapio_transparente)
+
+```
