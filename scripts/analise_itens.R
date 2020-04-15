@@ -148,7 +148,19 @@ itens <- item_contrato %>%
   rename(id_item = id_item_licitacao) %>%
   inner_join(dplyr::select(item_licit, id_item, id_licitacao, id_orgao,
                            vl_unitario_estimado, vl_total_estimado),
-             by=c("id_orgao","id_licitacao", "id_item")) %>%
+             by=c("id_orgao","id_licitacao", "id_item")) 
+
+# cria base ao nível de contratos
+contrato <- itens %>%
+  ungroup() %>%
+  group_by(id_contrato) %>%
+  summarise(total_contratado = sum(vl_total_item_contrato),
+            total_estimado = sum(vl_total_estimado),
+            dif = total_contratado - total_estimado,
+            contratado_over_estimado = total_contratado/total_estimado)
+
+# base ao nivel de itens  
+itens <- itens %>%
   mutate(dif_total = vl_total_item_contrato - vl_total_estimado) %>%
   group_by(id_orgao, id_licitacao, id_contrato, ds_item) %>%
   summarise(total_contratado= sum(vl_total_item_contrato),
@@ -165,23 +177,13 @@ itens <- item_contrato %>%
 itens <- itens %>%
   mutate(ds_item = gsub("[[:punct:]]", "", ds_item ))
 
-# perc de contratado == 0
-itens %>%
-  ungroup() %>%
-  summarise(num_zero = sum(total_contratado == 0),
-            num_linhas = n(),
-            perc_zero = round(num_zero/num_linhas, 2))
-
-# perc de estimado == 0
-itens %>%
-  ungroup() %>%
-  summarise(num_zero = sum(total_estimado == 0),
-            num_linhas = n(),
-            perc_zero = round(num_zero/num_linhas, 2))
+# remover itens cujo valor final de contrato é zero, ou cuja estimativa é zero
 
 itens <- itens %>%
-  filter(total_estimado > 0) %>%
-  filter(total_contratado > 0)
+  filter(total_contratado > 0) %>%
+  filter(total_estimado > 0)
+
+
 
 # num itens que entraram na análise
 itens %>%
@@ -195,11 +197,24 @@ ranking_2020 <- itens %>%
             cd_tipo_modalidade = max(cd_tipo_modalidade),
             total_contratado = sum(total_contratado),
             total_estimado = sum(total_estimado),
-            ds_item = max(ds_item)) %>%
+            ds_item = max(ds_item),
+            num_linhas = n(),
+            num_economia = sum(soma > 0),
+            num_desperd = sum(soma < 0),
+            num_Zero = sum(soma == 0)) %>%
   ungroup() %>%
   mutate(ranking_contrato_munic = cume_dist(dif_total))
 
 # gráfico 6
+ranking_2020 %>%
+  group_by(id_orgao, id_licitacao, id_contrato) %>%
+  summarise(contratado_over_estimado = total_contratado/total_estimado) %>%
+  ggplot(aes(log(contratado_over_estimado ))) +
+  geom_histogram(bins=100) +
+  xlab("contratado/estimado, em escala logarítmica") +
+  theme_bw()
+
+# gráfico 7
 ranking_2020 %>%
   filter(dif_total <= 0) %>%
   filter(cd_tipo_modalidade != "CNC") %>% # tem apenas um caso, histograma n faz sentido
@@ -210,25 +225,6 @@ ranking_2020 %>%
   theme_bw()
 
 
-# gráfico 7
-ranking_2020 %>%
-  group_by(id_orgao, id_licitacao, id_contrato) %>%
-  summarise(contratado_over_estimado = total_contratado/total_estimado) %>%
-  ggplot(aes(log(contratado_over_estimado ))) +
-  geom_histogram(bins=100) +
-  xlab("contratado/estimado, em escala logarítmica") +
-  theme_bw()
-
-ranking_2020 %>%
-  group_by(id_orgao, id_licitacao, id_contrato) %>%
-  summarise(contratado_over_estimado = total_contratado/total_estimado) %>%
-  ungroup() %>%
-  summarise(num_linhas = n(),
-            num_zero = sum(contratado_over_estimado == 1),
-            num_desperd = sum(contratado_over_estimado > 1),
-            perc_Zero = num_zero/num_linhas,
-            perc_desperd=num_desperd/num_linhas)
-
 # gráfico 8
 ranking_2020 %>%
   filter(dif_total != 0) %>%
@@ -238,144 +234,20 @@ ranking_2020 %>%
   theme_bw() + 
   xlab("estimado menos contratado, valor absoluto, em escala logarítmica")
 
-
+# gráfico 9
 ranking_2020 %>%
+  ungroup() %>%
+  mutate(ranking_itens = cume_dist(dif_total)) %>%
   filter(dif_total > -500000) %>%
-  ggplot(aes(ranking_contrato_munic, dif_total)) +
+  ggplot(aes(ranking_itens, dif_total)) +
   geom_point() +
   theme_bw() + xlab("ranking -- centil") + ylab("contratado menos estimado") +
   scale_x_continuous(labels = scales::percent)
 
-## análise terminou aqui.
-
+# filtro removeu quantos pontos?
 ranking_2020 %>%
-  summarise(quantile(dif_total, .5), n())
-
-quantile(log(ranking_2020$dif_total[ranking_2020$dif_total > 0]), (0:99)/100)
-
-          
-ranking_2020 %>%
-  filter(dif_total != 0) %>%
-  mutate(nao_positivo = ifelse(dif_total < 0, "economia", "desperdício")) %>%
-  ggplot(aes(log(abs(dif_total)))) + geom_histogram() +
-  facet_grid(nao_positivo ~., scales ="free") +
-  theme_bw() + 
-  xlab("estimado menos contratado, valor absoluto, em escala logarítmica")
-
-ranking_2020 %>%
-  filter(dif_total != 0) %>%
-  mutate(nao_positivo = ifelse(dif_total < 0, "economia", "desperdício")) %>%
-  group_by(nao_positivo) %>%
-  summarise(sd(log(abs(dif_total))),
-            median(log(abs(dif_total))),
-            media = mean(log(abs(dif_total))))
-
-ranking_2020 %>%
-  mutate(size = ifelse( dif_total < -500000, "big", 
-                        ifelse(dif_total < -50000, "medio", 
-                               ifelse(dif_total <= 1, "small", "positivo")))) %>%
-  group_by(size) %>%
-  summarise(n())
-
-
-
-ranking_2020 %>%
-  filter(dif_total <= 0) %>%
-  filter(cd_tipo_modalidade != "CNC") %>%
-  ggplot(aes(log(abs(dif_total) + 1 ))) +
-  geom_histogram(aes(y = stat(density))) + 
-  facet_grid(cd_tipo_modalidade ~., scales = "free") +
-  scale_y_continuous(labels = scales::percent_format()) +
-  xlab("valor economizado + 1 real, em escala logarítmica") +
-  theme_bw()
-  
-
-ranking_2020 %>%
-  filter(dif_total > -500000) %>%
-  filter(cd_tipo_modalidade != "CNC") %>%
   ungroup() %>%
-  group_by(cd_tipo_modalidade) %>%
-  summarise(num_zero = sum(dif_total == 0),
-            num_linhas = n(),
-            perc = num_zero/num_linhas)
-
-itens_arranged <- itens %>%
-  arrange(ds_item)
-glimpse(itens)
-
-robust_sd <- function(x) {
-  squared <- (x - median(x))^2
-  sqrt(sum(squared))
-}
-
-itens %>%
-  ungroup() %>%
-  summarise(media = mean(soma), dp = sd(soma),
-            mediana = median(soma),
-            dp_robust = robust_sd(soma)) %>%
-  mutate(up_l = 2*dp_robust + media,
-         lo_l = media - 2*dp_robust)
-df %>%
-  dplyr::ungroup() %>%
-  mutate(fora = soma > 1081721 | soma < -1056617) %>% # 3dp
-  group_by(fora) %>%
+  mutate(ranking_itens = cume_dist(dif_total)) %>%
+  filter(dif_total <= -500000) %>%
   summarise(n())
-
-df %>%
-  dplyr::ungroup() %>%
-  mutate(fora = soma > 725331 | soma < -700227) %>% # 2dp
-  group_by(fora) %>%
-  summarise(n())
-
-# 9 casos fora com 2dp
-
-df %>%
-  ggplot(aes(y=soma)) + geom_boxplot()
-
-df %>%
-  filter(soma > 0) %>%
-  ggplot(aes(x=log(soma))) + geom_histogram() +
-  xlab("log do valor total desperdiçado")
-
-df %>%
-  filter(soma < 0) %>%
-  ggplot(aes(x=log(-soma))) + geom_histogram() +
-  xlab("log do valor total economizado")
-
-df %>%
-  filter(soma < 0) %>%
-  ggplot(aes(x=log(num_itens_economia), y=log(-soma))) + geom_point() +
-  geom_smooth(method= "lm")
-
-df %>%
-  filter(soma < 0) %>%
-  ggplot(aes(x=log(num_itens_waste+1), y=log(-soma))) + geom_point() +
-  geom_smooth(method= "lm")
-
-df %>%
-  filter(soma > 0) %>%
-  ggplot(aes(x=log(num_itens_waste+1), y=log(soma))) + geom_point() +
-  geom_smooth(method= "lm")
-
-df %>%
-  ggplot(aes(x=num_itens_waste, y=soma)) + geom_point() +
-  geom_smooth(method= "lm")
-
-df %>%
-  filter(soma < 0) %>%
-  ggplot(aes(x=num_itens_waste, y=log(-soma))) + geom_point()
-
-df %>%
-  filter(soma < 0) %>%
-  ggplot(aes(log(num_itens_waste))) + geom_histogram()
-
-df %>%
-  filter(soma > 0) %>%
-  ggplot(aes(x=num_itens_economia, y=log(soma))) + geom_point()
-
-df %>%
-  filter(soma > 0) %>%
-  ggplot(aes(x=num_itens_waste, y=log(soma))) + geom_point()
-
-glimpse(df)
-summary(df)
+# 28
