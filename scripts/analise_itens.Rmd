@@ -131,12 +131,16 @@ num_itens %>%
 
 ```{r}
 diferenca_itens = item_contrato %>%
-  mutate(ds_item = str_to_lower(gsub("[[:punct:]]", "", ds_item ))) %>% 
+  ungroup() %>% 
+  mutate(ds_item =str_squish(str_to_lower(gsub("[[:punct:]]", "", ds_item )))) %>% 
   group_by(ds_item) %>% 
   mutate(ocorrencias = n_distinct(id_orgao), 
-         razao = vl_item_contrato / mean(vl_item_contrato)) %>%
+         razao = vl_item_contrato / median(vl_item_contrato)) %>%
   ungroup() %>% 
   mutate(ds_item2 = str_glue("{item} (n={q})", item = ds_item, q = ocorrencias))
+
+diferenca_itens %>% 
+  count(cd_tipo_modalidade)
 
 diferenca_itens %>% 
   filter(ocorrencias >= 30, vl_item_contrato < 100) %>%  # <- ATENÇÃO
@@ -151,11 +155,26 @@ diferenca_itens %>%
   filter(ocorrencias >= 30, vl_item_contrato < 100, razao > .01, razao < 100) %>%  # <- ATENÇÃO
   ggplot(aes(x = reorder(ds_item2, razao, sd), y = razao)) + 
   # geom_count(alpha = .3) +
-  geom_point(shape = 124, alpha = .7, color = "brown") + 
+  geom_point(shape = 124, alpha = .8, color = "cornflowerblue") + 
   scale_y_log10() + 
   coord_flip() + 
-  labs(x = "", y = "Contratado / média do item")
+  labs(x = "", y = "Contratado / mediana do item") + 
+  facet_wrap(~ reorder(cd_tipo_modalidade, cd_tipo_modalidade, function(x){-NROW(x)}), ncol = 4)
 ```
+
+
+
+```{r}
+item_contrato %>% 
+  group_by(id_orgao) %>% 
+  summarise(tipos = n_distinct(cd_tipo_modalidade), 
+            tem_cpp = any(cd_tipo_modalidade == "CPP")) %>% 
+  # count(tipos, tem_cpp) %>% 
+  ggplot(aes(x = tipos, fill = tem_cpp,)) +
+  geom_bar() + 
+  labs()
+```
+
 
 ```{r}
 diferenca_itens %>% 
